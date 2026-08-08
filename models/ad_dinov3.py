@@ -47,7 +47,7 @@ class AD_DINOv3(nn.Module):
             # Try to load via torch.hub (common for DINOv2/DINOv3 weights)
             # Note: DINOv3 official weights are available from Meta's releases.
             # Fallback to local import if available.
-            self.dinov3 = torch.hub.load('/kaggle/working/', 'dinov3-vitl16-pretrain-lvd1689m', pretrained=True)
+            self.dinov3 = torch.load('/kaggle/working/dinov3-vitl16-pretrain-lvd1689m/model.safetensors')
         except Exception as e:
             # Fallback: try direct import if installed in environment
             try:
