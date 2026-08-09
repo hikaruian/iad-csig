@@ -102,7 +102,7 @@ class AD_DINOv3(nn.Module):
         self.text_adapter_dim = 768
         try:
             import clip
-            self.clip_model, _ = clip.load(clip_text_model_name, device="cpu")
+            self.clip_model, _ = clip.load(clip_text_model_name, device="gpu")
         except Exception as e:
             # If clip not installed or model missing, create a mock text encoder
             # for code completeness. Users should install `open_clip` or `openai-clip`.
@@ -110,6 +110,10 @@ class AD_DINOv3(nn.Module):
             self.clip_model = None
             self.text_encoder = MockTextEncoder(self.text_adapter_dim)
         else:
+            if self.clip_model is not None:
+                print("clip_model loaded")
+            else:
+                print("clip_model is None")
             self.clip_model.eval()
             for param in self.clip_model.parameters():
                 param.requires_grad = False
