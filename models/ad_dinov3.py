@@ -92,7 +92,7 @@ class AD_DINOv3(nn.Module):
 
         # Light adapter for text embeddings (dimension depends on CLIP model)
         # For CLIP ViT-L/14, text embedding dim is 768.
-        self.text_adapter_dim = self.vis_dim
+        self.text_adapter_dim = 768#self.vis_dim
         self.text_adapter = LightAdapter(self.text_adapter_dim, adapter_reduction)
 
         # ------------------------------------------------------------------
