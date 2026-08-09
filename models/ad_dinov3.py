@@ -441,7 +441,12 @@ class AD_DINOv3(nn.Module):
                 # If not perfect square, find closest square <= N_patches or use fixed grid
                 # For simplicity, assume 32x32 grid (1024 patches) and truncate/pad.
                 grid_size = 32
-            abnormal_probs_grid = abnormal_probs[:, :grid_size * grid_size].reshape(B, grid_size, grid_size)
+            #abnormal_probs_grid = abnormal_probs[:, :grid_size * grid_size].reshape(B, grid_size, grid_size)
+            expected_patches = grid_size * grid_size
+            if abnormal_probs.shape[1] > expected_patches:
+                abnormal_probs_grid = abnormal_probs[:, -expected_patches:].reshape(B, grid_size, grid_size)
+            else:
+                abnormal_probs_grid = abnormal_probs[:, :expected_patches].reshape(B, grid_size, grid_size)
             # Upsample to original image size
             anomaly_map = F.interpolate(
                 abnormal_probs_grid.unsqueeze(1), size=(H, W), mode='bilinear', align_corners=False
@@ -472,22 +477,31 @@ class AD_DINOv3(nn.Module):
             # We already computed abnormal_probs at deepest level (before projection).
             # Let's reshape abnormal_probs to match grid size for loss.
             N_patches_cm = deepest_patch_feat.shape[1]
-            grid_size_cm = int(N_patches_cm ** 0.5)
-            if grid_size_cm * grid_size_cm == N_patches_cm:
-                abnormal_probs_grid = abnormal_probs[:, :grid_size_cm * grid_size_cm].reshape(B, grid_size_cm, grid_size_cm)
-                mask_down = F.interpolate(masks.unsqueeze(1).float(), size=(grid_size_cm, grid_size_cm), mode='bilinear', align_corners=False).squeeze(1)
-                mask_down_flat = mask_down.reshape(B, -1)
-                # Focal + Dice loss on abnormal probabilities vs mask
-                # Note: paper defines cross-modal alignment on patch-text similarity map P.
-                # We approximate P as abnormal_probs (probability of abnormal class per patch).
-                # Actually the paper uses P as the abnormal probability rearranged into image resolution.
-                # For simplicity, we compute focal and dice on the grid-level abnormal probabilities.
-                pred_flat = abnormal_probs[:, :grid_size_cm * grid_size_cm].reshape(B, -1)
-                cm_loss = AACM.focal_loss(pred_flat, mask_down_flat) + AACM.dice_loss(pred_flat, mask_down_flat)
+            #grid_size_cm = int(N_patches_cm ** 0.5)
+            #if grid_size_cm * grid_size_cm == N_patches_cm:
+            #    abnormal_probs_grid = abnormal_probs[:, :grid_size_cm * grid_size_cm].reshape(B, grid_size_cm, grid_size_cm)
+            #    mask_down = F.interpolate(masks.unsqueeze(1).float(), size=(grid_size_cm, grid_size_cm), mode='bilinear', align_corners=False).squeeze(1)
+            #    mask_down_flat = mask_down.reshape(B, -1)
+            #    # Focal + Dice loss on abnormal probabilities vs mask
+            #    # Note: paper defines cross-modal alignment on patch-text similarity map P.
+            #    # We approximate P as abnormal_probs (probability of abnormal class per patch).
+            #    # Actually the paper uses P as the abnormal probability rearranged into image resolution.
+            #    # For simplicity, we compute focal and dice on the grid-level abnormal probabilities.
+            #    pred_flat = abnormal_probs[:, :grid_size_cm * grid_size_cm].reshape(B, -1)
+            #    cm_loss = AACM.focal_loss(pred_flat, mask_down_flat) + AACM.dice_loss(pred_flat, mask_down_flat)
+
+            expected_patches = (H // 16) * (W // 16)
+            if N_patches_cm > expected_patches:
+                pred_flat = abnormal_probs[:, -expected_patches:].reshape(B, -1)
             else:
                 # Approximate: interpolate mask and abnormal_probs directly to image size
                 # But for simplicity, use original abnormal_probs against downsampled mask at image level
-                pass
+                #pass
+                pred_flat = abnormal_probs[:, :expected_patches].reshape(B, -1)
+            grid_size_cm = int(expected_patches ** 0.5)
+            mask_down = F.interpolate(masks.unsqueeze(1).float(), size=(grid_size_cm, grid_size_cm), mode='bilinear', align_corners=False).squeeze(1)
+            mask_down_flat = mask_down.reshape(B, -1)
+            cm_loss = AACM.focal_loss(pred_flat, mask_down_flat) + AACM.dice_loss(pred_flat, mask_down_flat)
 
         result = {
             'cls_token': deepest_cls_proj.squeeze(1) if deepest_cls_proj.dim() == 3 else deepest_cls_proj,
