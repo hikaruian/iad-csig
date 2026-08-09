@@ -15,7 +15,7 @@ Reference paper:
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch
+import os  # Added for checkpoint loading paths
 from .adapter import LightAdapter, MultiLevelVisualAdapter
 from .aacm import AACM
 
@@ -27,7 +27,7 @@ class AD_DINOv3(nn.Module):
     """
     def __init__(
         self,
-        dinov3_backbone_name: str = "dinov3_vitl16_reg14",
+        dinov3_backbone_name: str = "dinov3_vitl16",  # Official: facebook/dinov3-vitl16-pretrain-lvd1689m (4 registers / reg4)
         clip_text_model_name: str = "ViT-L/14",
         adapter_reduction: int = 4,
         feature_layers: list = [6, 12, 18, 24],
@@ -44,10 +44,33 @@ class AD_DINOv3(nn.Module):
         # ------------------------------------------------------------------
         try:
             import torch.hub
-            # Try to load via torch.hub (common for DINOv2/DINOv3 weights)
-            # Note: DINOv3 official weights are available from Meta's releases.
-            # Fallback to local import if available.
-            self.dinov3 = torch.hub.load("./hub","dinov3_vitl16",source="local",model_id="/kaggle/working/dinov3-vitl16-pretrain-lvd1689m",local_files_only=True,)
+            # Official DINOv3 repo is facebookresearch/dinov3 (not dinov2).
+            # If the repo is cloned locally or installed, load from there.
+            # Fallback: load from a manually downloaded .pth file if the repo is unavailable.
+            # Note: The official DINOv3 ViT-L/16 weight file (facebook/dinov3-vitl16-pretrain-lvd1689m)
+            # has 4 register tokens (reg4). There is no official Meta release named reg14.
+            # If your reference code truly requires 14 registers, you must modify the model config
+            # (num_register_tokens=14) and load a custom checkpoint.
+            try:
+                # Try official dinov3 repo first (requires local clone or pip install)
+                # If weights are downloaded locally, set source='local' with weights path.
+                #self.dinov3 = torch.hub.load(
+                #    'facebookresearch/dinov3',
+                #    'dinov3_vitl16',
+                #    source='local',
+                #    weights='<PATH_TO_DOWNLOADED_PTH>',
+                #    pretrained=False
+                #)
+                self.dinov3 = torch.hub.load("./hub","dinov3_vitl16",source="local",model_id="/kaggle/working/dinov3-vitl16-pretrain-lvd1689m",local_files_only=True,)
+            except Exception:
+                # If local repo not available, try loading directly from a local checkpoint file
+                checkpoint_path = os.environ.get('DINOV3_CHECKPOINT', 'dinov3_vitl16.pth')
+                if os.path.exists(checkpoint_path):
+                    import dinov3
+                    self.dinov3 = dinov3.load_model(checkpoint_path)
+                else:
+                    # Final fallback: try loading from github repo (requires network)
+                    self.dinov3 = torch.hub.load('facebookresearch/dinov3', 'dinov3_vitl16', source='github', pretrained=True)
         except Exception as e:
             # Fallback: try direct import if installed in environment
             try:
@@ -63,8 +86,7 @@ class AD_DINOv3(nn.Module):
             param.requires_grad = False
 
         # Feature dimension for ViT-L/16
-        #self.vis_dim = self.dinov3.embed_dim  # typically 1024 for ViT-L/16
-        self.vis_dim = self.dinov3.config.hidden_size  # typically 1024 for ViT-L/16
+        self.vis_dim = self.dinov3.embed_dim  # typically 1024 for ViT-L/16
         self.num_layers = len(self.feature_layers)
 
         # ------------------------------------------------------------------
@@ -83,7 +105,7 @@ class AD_DINOv3(nn.Module):
             # for code completeness. Users should install `open_clip` or `openai-clip`.
             print("WARNING: Could not load CLIP text encoder. Using mock encoder.")
             self.clip_model = None
-            self.text_encoder = MockTextEncoder(self.vis_dim)
+            self.text_encoder = MockTextEncoder(self.text_adapter_dim)
         else:
             self.clip_model.eval()
             for param in self.clip_model.parameters():
@@ -91,8 +113,9 @@ class AD_DINOv3(nn.Module):
             self.text_encoder = self.clip_model.encode_text
 
         # Light adapter for text embeddings (dimension depends on CLIP model)
-        # For CLIP ViT-L/14, text embedding dim is 768.
-        self.text_adapter_dim = 768#self.vis_dim
+        # CLIP ViT-L/14 text embeddings are always 768-D. Even when clip is not installed,
+        # our mock prompts (generate_text_prompts) produce 768-D embeddings.
+        self.text_adapter_dim = 768
         self.text_adapter = LightAdapter(self.text_adapter_dim, adapter_reduction)
 
         # ------------------------------------------------------------------
@@ -328,9 +351,24 @@ class AD_DINOv3(nn.Module):
                 with torch.no_grad():
                     text_embeddings = self.clip_model.encode_text(text_prompts)
             else:
-                # Mock path: assume text_prompts are already embeddings
-                if isinstance(text_prompts, torch.Tensor) and text_prompts.dim() == 3:
-                    text_embeddings = text_prompts.squeeze(1)
+                # Mock path: assume text_prompts are already embeddings.
+                # Expected shapes:
+                #   (B, 2, D) -> two prompts [normal, abnormal]
+                #   (B, D)   -> single prompt
+                #   (B, L)   -> token IDs (not embeddings)
+                if isinstance(text_prompts, torch.Tensor):
+                    if text_prompts.dim() == 3 and text_prompts.shape[1] == 2:
+                        # Already (B, 2, D) for two prompts
+                        text_embeddings = text_prompts
+                    elif text_prompts.dim() == 3:
+                        # Other 3D case: squeeze middle dim
+                        text_embeddings = text_prompts.squeeze(1)
+                    elif text_prompts.dim() == 2 and text_prompts.shape[-1] == 768:
+                        # Likely (B, D) embeddings
+                        text_embeddings = text_prompts
+                    else:
+                        # Treat as token IDs (B, L) -> embed via mock encoder
+                        text_embeddings = MockTextEncoder(self.text_adapter_dim)(text_prompts)
                 else:
                     text_embeddings = text_prompts
         else:
@@ -497,3 +535,4 @@ class MockTextEncoder(nn.Module):
             return self.proj(dummy.mean(dim=1))
         else:
             return self.proj(token_ids.float())
+
