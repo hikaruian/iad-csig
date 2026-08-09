@@ -28,7 +28,7 @@ class AD_DINOv3(nn.Module):
     def __init__(
         self,
         dinov3_backbone_name: str = "dinov3_vitl16",  # Official: facebook/dinov3-vitl16-pretrain-lvd1689m (4 registers / reg4)
-        clip_text_model_name: str = "ViT-L/14",
+        clip_text_model_name: str = "ViT-L/16",
         adapter_reduction: int = 4,
         feature_layers: list = [6, 12, 18, 24],
         lambda_cm: float = 1.0,
@@ -99,7 +99,7 @@ class AD_DINOv3(nn.Module):
         # ------------------------------------------------------------------
         # CLIP ViT-L/14 text embeddings are always 768-D. Even when clip is not installed,
         # our mock prompts (generate_text_prompts) produce 768-D embeddings.
-        self.text_adapter_dim = 768
+        self.text_adapter_dim = self.dinov3.config.hidden_size #768
         try:
             import clip
             self.clip_model, _ = clip.load(clip_text_model_name, device="cuda")
