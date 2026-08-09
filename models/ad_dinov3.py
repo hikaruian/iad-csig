@@ -346,8 +346,11 @@ class AD_DINOv3(nn.Module):
 
         # 3. Text branch
         if text_prompts is not None:
+            is_float_embeddings = (isinstance(text_prompts, torch.Tensor) and
+                                   text_prompts.dtype in [torch.float32, torch.float16, torch.float64])
             # Encode text with CLIP
-            if self.clip_model is not None:
+            #if self.clip_model is not None:
+            if self.clip_model is not None and not is_float_embeddings:
                 with torch.no_grad():
                     text_embeddings = self.clip_model.encode_text(text_prompts)
             else:
