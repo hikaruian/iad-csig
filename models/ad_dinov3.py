@@ -97,6 +97,8 @@ class AD_DINOv3(nn.Module):
         # ------------------------------------------------------------------
         # 3. Text branch: CLIP text encoder + adapter
         # ------------------------------------------------------------------
+        # CLIP ViT-L/14 text embeddings are always 768-D. Even when clip is not installed,
+        # our mock prompts (generate_text_prompts) produce 768-D embeddings.
         self.text_adapter_dim = 768
         try:
             import clip
@@ -114,8 +116,7 @@ class AD_DINOv3(nn.Module):
             self.text_encoder = self.clip_model.encode_text
 
         # Light adapter for text embeddings (dimension depends on CLIP model)
-        # CLIP ViT-L/14 text embeddings are always 768-D. Even when clip is not installed,
-        # our mock prompts (generate_text_prompts) produce 768-D embeddings.
+        # For CLIP ViT-L/14, text embedding dim is 768.
         self.text_adapter = LightAdapter(self.text_adapter_dim, adapter_reduction)
 
         # ------------------------------------------------------------------
@@ -346,10 +347,10 @@ class AD_DINOv3(nn.Module):
 
         # 3. Text branch
         if text_prompts is not None:
+            # Determine if text_prompts are pre-computed float embeddings or integer token IDs
             is_float_embeddings = (isinstance(text_prompts, torch.Tensor) and
                                    text_prompts.dtype in [torch.float32, torch.float16, torch.float64])
-            # Encode text with CLIP
-            #if self.clip_model is not None:
+            # Encode text with CLIP only if they are token IDs (integer); if float embeddings, use directly
             if self.clip_model is not None and not is_float_embeddings:
                 with torch.no_grad():
                     text_embeddings = self.clip_model.encode_text(text_prompts)
@@ -427,30 +428,18 @@ class AD_DINOv3(nn.Module):
         # and upsampling.
         anomaly_map = None
         if return_maps:
-            # Determine grid size from number of patches N.
-            # Note: exact N depends on image size and patch size (16x16 for ViT-L).
-            # We approximate grid size by sqrt(N), but it's safer to compute from image size.
-            # For standard 512x512 input with patch size 16, grid = 32x32, N = 1024.
-            # We assume input has been resized to a standard size or we compute from actual image dimensions.
-            # Let's approximate grid = int(sqrt(N)) if N is square.
-            N_patches = deepest_patch.shape[1]
-            # Try to infer grid from original image dimensions and patch size (16)
-            # We assume input images are resized to 512x512 in the dataset loader, giving grid 32x32.
-            grid_size = int(N_patches ** 0.5)
-            if grid_size * grid_size != N_patches:
-                # If not perfect square, find closest square <= N_patches or use fixed grid
-                # For simplicity, assume 32x32 grid (1024 patches) and truncate/pad.
-                grid_size = 32
-            #abnormal_probs_grid = abnormal_probs[:, :grid_size * grid_size].reshape(B, grid_size, grid_size)
-            expected_patches = grid_size * grid_size
-            if abnormal_probs.shape[1] > expected_patches:
-                abnormal_probs_grid = abnormal_probs[:, -expected_patches:].reshape(B, grid_size, grid_size)
+            # DINOv3 ViT-L/16 includes 4 register tokens (reg4). After CLS removal,
+            # deepest_patch has 4 + (H//16)*(W//16) tokens. The actual patches are the LAST ones.
+            grid_size_h = H // 16
+            grid_size_w = W // 16
+            expected_patches = grid_size_h * grid_size_w
+            if abnormal_probs.shape[1] >= expected_patches:
+                abnormal_probs_grid = abnormal_probs[:, -expected_patches:].reshape(B, grid_size_h, grid_size_w)
             else:
-                abnormal_probs_grid = abnormal_probs[:, :expected_patches].reshape(B, grid_size, grid_size)
-            # Upsample to original image size
+                abnormal_probs_grid = abnormal_probs[:, :expected_patches].reshape(B, grid_size_h, grid_size_w)
             anomaly_map = F.interpolate(
                 abnormal_probs_grid.unsqueeze(1), size=(H, W), mode='bilinear', align_corners=False
-            ).squeeze(1)  # (B, H, W)
+            ).squeeze(1)
 
         # 6. AACM loss (training only, requires masks)
         aacm_loss = torch.tensor(0.0, device=device)
@@ -477,30 +466,23 @@ class AD_DINOv3(nn.Module):
             # We already computed abnormal_probs at deepest level (before projection).
             # Let's reshape abnormal_probs to match grid size for loss.
             N_patches_cm = deepest_patch_feat.shape[1]
-            #grid_size_cm = int(N_patches_cm ** 0.5)
-            #if grid_size_cm * grid_size_cm == N_patches_cm:
-            #    abnormal_probs_grid = abnormal_probs[:, :grid_size_cm * grid_size_cm].reshape(B, grid_size_cm, grid_size_cm)
-            #    mask_down = F.interpolate(masks.unsqueeze(1).float(), size=(grid_size_cm, grid_size_cm), mode='bilinear', align_corners=False).squeeze(1)
-            #    mask_down_flat = mask_down.reshape(B, -1)
-            #    # Focal + Dice loss on abnormal probabilities vs mask
-            #    # Note: paper defines cross-modal alignment on patch-text similarity map P.
-            #    # We approximate P as abnormal_probs (probability of abnormal class per patch).
-            #    # Actually the paper uses P as the abnormal probability rearranged into image resolution.
-            #    # For simplicity, we compute focal and dice on the grid-level abnormal probabilities.
-            #    pred_flat = abnormal_probs[:, :grid_size_cm * grid_size_cm].reshape(B, -1)
-            #    cm_loss = AACM.focal_loss(pred_flat, mask_down_flat) + AACM.dice_loss(pred_flat, mask_down_flat)
-
+            # DINOv3 ViT-L/16 includes 4 register tokens; actual patches = (H//16)*(W//16)
             expected_patches = (H // 16) * (W // 16)
+            # If deepest_patch includes register tokens (N > expected_patches),
+            # take the last expected_patches elements which are the actual patches.
             if N_patches_cm > expected_patches:
                 pred_flat = abnormal_probs[:, -expected_patches:].reshape(B, -1)
             else:
-                # Approximate: interpolate mask and abnormal_probs directly to image size
-                # But for simplicity, use original abnormal_probs against downsampled mask at image level
-                #pass
                 pred_flat = abnormal_probs[:, :expected_patches].reshape(B, -1)
+            # Use expected_patches as the grid size for mask downsampling
             grid_size_cm = int(expected_patches ** 0.5)
             mask_down = F.interpolate(masks.unsqueeze(1).float(), size=(grid_size_cm, grid_size_cm), mode='bilinear', align_corners=False).squeeze(1)
             mask_down_flat = mask_down.reshape(B, -1)
+            # Focal + Dice loss on abnormal probabilities vs mask
+            # Note: paper defines cross-modal alignment on patch-text similarity map P.
+            # We approximate P as abnormal_probs (probability of abnormal class per patch).
+            # Actually the paper uses P as the abnormal probability rearranged into image resolution.
+            # For simplicity, we compute focal and dice on the grid-level abnormal probabilities.
             cm_loss = AACM.focal_loss(pred_flat, mask_down_flat) + AACM.dice_loss(pred_flat, mask_down_flat)
 
         result = {
