@@ -102,7 +102,7 @@ class AD_DINOv3(nn.Module):
         self.text_adapter_dim = 768
         try:
             import clip
-            self.clip_model, _ = clip.load(clip_text_model_name, device="gpu")
+            self.clip_model, _ = clip.load(clip_text_model_name, device="cuda")
         except Exception as e:
             # If clip not installed or model missing, create a mock text encoder
             # for code completeness. Users should install `open_clip` or `openai-clip`.
