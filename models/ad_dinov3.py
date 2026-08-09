@@ -86,7 +86,7 @@ class AD_DINOv3(nn.Module):
             param.requires_grad = False
 
         # Feature dimension for ViT-L/16
-        self.vis_dim = self.dinov3.embed_dim  # typically 1024 for ViT-L/16
+        self.vis_dim = self.dinov3.config.hidden_size  # typically 1024 for ViT-L/16
         self.num_layers = len(self.feature_layers)
 
         # ------------------------------------------------------------------
