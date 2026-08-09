@@ -97,6 +97,7 @@ class AD_DINOv3(nn.Module):
         # ------------------------------------------------------------------
         # 3. Text branch: CLIP text encoder + adapter
         # ------------------------------------------------------------------
+        self.text_adapter_dim = 768
         try:
             import clip
             self.clip_model, _ = clip.load(clip_text_model_name, device="cpu")
@@ -115,7 +116,6 @@ class AD_DINOv3(nn.Module):
         # Light adapter for text embeddings (dimension depends on CLIP model)
         # CLIP ViT-L/14 text embeddings are always 768-D. Even when clip is not installed,
         # our mock prompts (generate_text_prompts) produce 768-D embeddings.
-        self.text_adapter_dim = 768
         self.text_adapter = LightAdapter(self.text_adapter_dim, adapter_reduction)
 
         # ------------------------------------------------------------------
