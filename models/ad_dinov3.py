@@ -410,7 +410,7 @@ class AD_DINOv3(nn.Module):
         sim_abnormal = torch.bmm(deepest_patch_proj, abnormal_text.unsqueeze(2)).squeeze(2)  # (B, N)
         # Stack and apply softmax over dimension 1 (the two classes)
         sims = torch.stack([sim_normal, sim_abnormal], dim=1)  # (B, 2, N)
-        sims = sims / (sim_normal.norm(p=2, dim=-1, keepdim=True) + 1e-6)  # approximate normalization for cosine
+        #sims = sims / (sim_normal.norm(p=2, dim=-1, keepdim=True) + 1e-6)  # approximate normalization for cosine
         # Better approach: normalize features first
         deepest_patch_proj_norm = F.normalize(deepest_patch_proj, p=2, dim=-1)
         normal_text_norm = F.normalize(normal_text, p=2, dim=-1)
@@ -432,15 +432,22 @@ class AD_DINOv3(nn.Module):
         # and upsampling.
         anomaly_map = None
         if return_maps:
-            # DINOv3 ViT-L/16 includes 4 register tokens (reg4). After CLS removal,
-            # deepest_patch has 4 + (H//16)*(W//16) tokens. The actual patches are the LAST ones.
+            # DINOv3 ViT-L/16 includes 4 register tokens (reg4) placed before patches.
+            # After CLS removal, deepest_patch = [register_*4, patch_*N].
+            # We explicitly skip register tokens by computing the difference.
             grid_size_h = H // 16
             grid_size_w = W // 16
             expected_patches = grid_size_h * grid_size_w
-            if abnormal_probs.shape[1] >= expected_patches:
-                abnormal_probs_grid = abnormal_probs[:, -expected_patches:].reshape(B, grid_size_h, grid_size_w)
+            diff = deepest_patch.shape[1] - expected_patches  # should be 4 (registers)
+            if diff > 0:
+                actual_patches = deepest_patch[:, diff:]  # skip first `diff` register tokens
             else:
-                abnormal_probs_grid = abnormal_probs[:, :expected_patches].reshape(B, grid_size_h, grid_size_w)
+                actual_patches = deepest_patch
+            abnormal_probs_patches = abnormal_probs[:, diff:] if diff > 0 else abnormal_probs
+            if abnormal_probs_patches.shape[1] >= expected_patches:
+                abnormal_probs_grid = abnormal_probs_patches[:, -expected_patches:].reshape(B, grid_size_h, grid_size_w)
+            else:
+                abnormal_probs_grid = abnormal_probs_patches[:, :expected_patches].reshape(B, grid_size_h, grid_size_w)
             anomaly_map = F.interpolate(
                 abnormal_probs_grid.unsqueeze(1), size=(H, W), mode='bilinear', align_corners=False
             ).squeeze(1)
