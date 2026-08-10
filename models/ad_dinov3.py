@@ -30,7 +30,7 @@ class AD_DINOv3(nn.Module):
         dinov3_backbone_name: str = "dinov3_vitl16",  # Official: facebook/dinov3-vitl16-pretrain-lvd1689m (4 registers / reg4)
         clip_text_model_name: str = "ViT-L/14@336px",
         adapter_reduction: int = 4,
-        feature_layers: list = [6, 12, 18, 24],
+        feature_layers: list = [18,19,20,21,22,23],
         lambda_cm: float = 1.0,
         lambda_aacm: float = 1.0,
     ):
