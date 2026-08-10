@@ -44,14 +44,21 @@ def train_epoch(model, loader, optimizer, device):
         # Here we assume masks are not available during standard dataset loading
         # (as the dataset only contains images for CSIG/Real-IAD without annotations),
         # but for demonstration we create dummy masks.
-        masks = torch.zeros(view_image.size(0), view_image.size(2), view_image.size(3), device=device)
-        optimizer.zero_grad()
-        # Default text prompts for anomaly detection
-        # Format: [normal_prompt, abnormal_prompt]
-        # We create dummy tokenized text as embeddings (B, 2, D) using random initialization
-        # for demonstration. In real use, users should load CLIP-encoded prompts.
+        # Synthetic masks for demonstration (random rectangle anomalies) + fixed text prompts
+        # In real use: replace with actual binary masks loaded from annotations
         B = view_image.size(0)
+        masks = torch.zeros(B, view_image.size(2), view_image.size(3), device=device)
+        for i in range(B):
+            # Random rectangle anomaly region (simulating anomalous patches)
+            h_start = np.random.randint(128, 320)
+            w_start = np.random.randint(128, 320)
+            h_end = min(h_start + np.random.randint(32, 96), 448)
+            w_end = min(w_start + np.random.randint(32, 96), 448)
+            masks[i, h_start:h_end, w_start:w_end] = 1.0
+        # Fixed text prompts using consistent random seed (simulating [normal, abnormal] embeddings)
+        torch.manual_seed(42)
         dummy_text = torch.randn(B, 2, 768, device=device)
+        torch.manual_seed(torch.initial_seed())
         outputs = model(view_image, text_prompts=dummy_text, masks=masks, return_maps=True)
         loss = outputs['total_loss']
         # If masks are all zeros, the loss will train to predict no anomalies,
@@ -117,3 +124,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
