@@ -471,7 +471,11 @@ class AD_DINOv3(nn.Module):
                 deepest_cls_feat = deepest_cls
             # Deepest patch tokens in feature space (before projection) are deepest_patch.
             deepest_patch_feat = deepest_patch
-            aacm_loss = self.aacm.loss(deepest_cls_feat, deepest_patch_feat, masks)
+            # For AACM, skip register tokens (first diff tokens) so patch count matches mask grid
+            expected_patches_aacm = (H // 16) * (W // 16)
+            diff_aacm = deepest_patch_feat.shape[1] - expected_patches_aacm
+            deepest_patch_feat_for_aacm = deepest_patch_feat[:, diff_aacm:, :] if diff_aacm > 0 else deepest_patch_feat
+            aacm_loss = self.aacm.loss(deepest_cls_feat, deepest_patch_feat_for_aacm, masks)
 
             # Cross-modal alignment loss: compare anomaly map (patch_probs abnormal) with mask.
             # We already computed abnormal_probs at deepest level (before projection).
