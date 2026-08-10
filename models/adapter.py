@@ -21,9 +21,9 @@ class LightAdapter(nn.Module):
         self.relu = nn.LeakyReLU(inplace=True)
         self.up = nn.Linear(hidden_dim, dim)
         # Initialize near identity for stability
-        nn.init.xavier_uniform_(self.down.weight, gain=0.1)
+        nn.init.xavier_uniform_(self.down.weight, gain=1.0)
         nn.init.zeros_(self.down.bias)
-        nn.init.xavier_uniform_(self.up.weight, gain=0.1)
+        nn.init.xavier_uniform_(self.up.weight, gain=1.0)
         nn.init.zeros_(self.up.bias)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
