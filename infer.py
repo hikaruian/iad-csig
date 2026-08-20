@@ -28,7 +28,7 @@ from src.data import CSIGImageDataset, CSIGSampleDataset, build_transform
 from src.dist_utils import all_gather_object, barrier, cleanup, init_distributed, is_main, setup_seed
 from src.encoder import prefetch_encoder_weights
 from src.model import anomaly_map_from_features
-from src.postprocess import calibrate_scale, maps_to_uint8, sample_score_from_views, smooth_map
+from src.postprocess import calibrate_scale, maps_to_uint8, sample_score_from_views, smooth_map, squash_score
 from src.refine import NormalStats, apply_view_gate, apply_view_refine
 from src.submission import zip_submission
 
@@ -313,6 +313,7 @@ def main():
                             scores=raw_scores,
                         )
                 score = sample_score_from_views(view_maps, max_ratio=args.max_ratio, reduce=args.reduce)
+                score = squash_score(score)
                 this_scale = scale
                 masks_u8 = maps_to_uint8(view_maps, scale=this_scale)
                 gf = folders[i]
@@ -368,3 +369,4 @@ if __name__ == "__main__":
         main()
     finally:
         cleanup()
+

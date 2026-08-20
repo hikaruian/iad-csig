@@ -5,12 +5,10 @@ export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0,1}
 export NCCL_P2P_DISABLE=${NCCL_P2P_DISABLE:-1}
 export NCCL_IB_DISABLE=${NCCL_IB_DISABLE:-1}
 
-TRAIN_ROOT=${TRAIN_ROOT:-/path/to/CSIG/Train}
-TEST_ROOT=${TEST_ROOT:-/path/to/CSIG/Test_A}
 
 # global batch = 2 GPU × 4 × accum 2 = 16 (paper)
 torchrun --standalone --nnodes=1 --nproc_per_node=2 train.py \
-  --train-root "$TRAIN_ROOT" \
+  --train-root "./data/Real-IAD/Train" \
   --save-dir runs/inpformer_b14 \
   --encoder dinov2reg_vit_base_14 \
   --image-size 448 \
@@ -22,11 +20,11 @@ torchrun --standalone --nnodes=1 --nproc_per_node=2 train.py \
   --amp
 
 torchrun --standalone --nnodes=1 --nproc_per_node=2 infer.py \
-  --test-root "$TEST_ROOT" \
-  --ckpt runs/inpformer_b14/model.pth \
-  --train-root "$TRAIN_ROOT" \
-  --out-dir outputs/submission \
-  --zip outputs/my_submission.zip \
+  --test-root "./data/Real-IAD/Test_A" \
+  --ckpt runs/inpformer_b14/best.pth \
+  --train-root "./data/Real-IAD/Train" \
+  --out-dir submission \
+  --zip my_submission.zip \
   --samples-per-batch 2 \
   --sigma 2.5 \
   --gamma 1.4 \

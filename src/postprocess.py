@@ -25,6 +25,17 @@ def smooth_map(amap: np.ndarray, sigma: float = 4.0) -> np.ndarray:
     return out
 
 
+def squash_score(score: float) -> float:
+    """Map a non-negative raw score to [0, 1) with a strictly increasing transform.
+
+    Raw scores are top-1% means of reconstruction / z-score maps, not probabilities.
+    After z-score + gamma they routinely exceed 1. I-AUROC / I-AP only care about
+    ranking, so this does not change those metrics.
+    """
+    s = max(0.0, float(score))
+    return s / (1.0 + s)
+
+
 def sample_score_from_views(view_maps: np.ndarray, max_ratio: float = 0.01, reduce: str = "max") -> float:
     """view_maps: (5, H, W). Official recipe: mean of top-1% pixels per view."""
     scores = []
@@ -87,3 +98,4 @@ def resize_to_448(arr: np.ndarray) -> np.ndarray:
         img = img.resize((448, 448), resample=Image.BILINEAR)
         out.append(np.asarray(img, dtype=np.float32))
     return np.stack(out, axis=0)
+
