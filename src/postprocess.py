@@ -26,14 +26,17 @@ def smooth_map(amap: np.ndarray, sigma: float = 4.0) -> np.ndarray:
 
 
 def squash_score(score: float) -> float:
-    """Map a non-negative raw score to [0, 1) with a strictly increasing transform.
+    """Map a non-negative raw score to [0, 1] with a strictly increasing transform.
 
     Raw scores are top-1% means of reconstruction / z-score maps, not probabilities.
     After z-score + gamma they routinely exceed 1. I-AUROC / I-AP only care about
     ranking, so this does not change those metrics.
     """
-    s = max(0.0, float(score))
-    return s / (1.0 + s)
+    s = float(score)
+    if not np.isfinite(s):
+        return 0.0
+    s = max(0.0, s)
+    return float(min(1.0, s / (1.0 + s)))
 
 
 def sample_score_from_views(view_maps: np.ndarray, max_ratio: float = 0.01, reduce: str = "max") -> float:

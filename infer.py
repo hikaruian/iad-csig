@@ -335,11 +335,15 @@ def main():
                 rows.append((gf, score))
         rows.sort(key=lambda x: x[0])
         csv_path = out / "submission.csv"
+        vals = []
         with open(csv_path, "w", encoding="utf-8-sig", newline="") as fcsv:
             writer = csv.writer(fcsv)
             writer.writerow(["group_folder", "anomaly_score"])
             for gf, score in rows:
-                writer.writerow([gf, f"{score:.8f}"])
+                s = squash_score(score)
+                vals.append(s)
+                writer.writerow([gf, f"{s:.8f}"])
+        print(f"[csv] anomaly_score min={min(vals):.6f} max={max(vals):.6f}  (must be in [0,1])")
         meta = {
             "test_root": args.test_root,
             "ckpt": args.ckpt,
