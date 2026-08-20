@@ -172,22 +172,38 @@ class NormalStats:
         arr = np.asarray(xs, dtype=np.float64)
         return float(arr.mean()), float(max(arr.std(), 1e-6))
 
-    def view_gate(self, category: str, view: int, score: float, k: float = 1.25, temp: float = 0.35, floor: float = 0.0) -> float:
-        """Soft factor in [floor, 1]: how much this view looks *more anomalous than train normals*.
-
-        Pixel AP/F1 on this contest is dominated by mid-score leakage on *normal views*
-        (5 cameras, often only 1–2 show the defect). Zeroing those views is the
-        single largest precision lever — papers do not do this when they report P-AP.
-        """
-        mu, sd = self.score_mu_std(category, view)
-        if mu is None:
+    def view_gate(
+        self,
+        category: str,
+        view: int,
+        score: float,
+        k: float = 1.25,
+        temp: float = 0.35,
+        floor: float = 0.0,
+        hard: bool = True,
+        mode: str = "max",
+        margin: float = 1.12,
+    ) -> float:
+        xs = self.view_scores.get(self.key(category, view)) or []
+        if len(xs) < 1:
             return 1.0
-        z = (float(score) - mu) / sd
-        # sigmoid((z-k)/temp): k=1.25 ≈ keep views above ~90th pct of train normals
-        x = (z - float(k)) / max(float(temp), 1e-3)
-        x = float(np.clip(x, -20.0, 20.0))
-        g = 1.0 / (1.0 + np.exp(-x))
-        return float(max(floor, g))
+        sc = float(score)
+        if mode == "max":
+            keep = sc > float(np.max(xs)) * float(margin)
+        else:
+            mu, sd = self.score_mu_std(category, view)
+            if mu is None:
+                return 1.0
+            z = (sc - mu) / sd
+            if hard:
+                keep = z > float(k)
+            else:
+                x = (z - float(k)) / max(float(temp), 1e-3)
+                x = float(np.clip(x, -20.0, 20.0))
+                return float(max(floor, 1.0 / (1.0 + np.exp(-x))))
+        if keep:
+            return 1.0
+        return 0.0 if hard else float(floor)
 
     def save(self, path: str):
         keys = sorted(self.sum.keys())
@@ -269,12 +285,10 @@ def apply_view_gate(
     temp: float = 0.35,
     floor: float = 0.0,
     scores: Optional[list] = None,
+    hard: bool = True,
+    mode: str = "max",
+    margin: float = 1.12,
 ) -> tuple:
-    """Scale each view's map by how abnormal that view is vs train normals.
-
-    `scores` MUST be in the same unit as the train view_scores (raw smoothed
-    top-1%). Passing refined-map scores silently breaks the z-score gate.
-    """
     maps = np.asarray(maps, dtype=np.float32)
     gates = []
     used_scores = []
@@ -287,7 +301,10 @@ def apply_view_gate(
             kk = max(1, int(flat.size * max_ratio))
             sc = float(np.partition(flat, -kk)[-kk:].mean())
         used_scores.append(sc)
-        g = 1.0 if stats is None else stats.view_gate(category, v, sc, k=k, temp=temp, floor=floor)
+        g = 1.0 if stats is None else stats.view_gate(
+            category, v, sc, k=k, temp=temp, floor=floor, hard=hard, mode=mode, margin=margin
+        )
         gates.append(g)
         out[v] = maps[v] * g
     return out, gates, used_scores
+

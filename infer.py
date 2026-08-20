@@ -62,21 +62,26 @@ def parse_args():
     p.add_argument("--refine", dest="refine", action="store_true", default=True,
                    help="Z-score / gamma / border / fg-gate (default ON, this is the P-AP booster).")
     p.add_argument("--no-refine", dest="refine", action="store_false")
-    p.add_argument("--gamma", type=float, default=1.4)
+    p.add_argument("--gamma", type=float, default=1.0,
+                   help="1.0 recommended: gamma>1 inflates mid-range texture and kills P-AP.")
     p.add_argument("--border", type=int, default=16)
-    p.add_argument("--fg-gate", dest="fg_gate", action="store_true", default=True)
+    p.add_argument("--fg-gate", dest="fg_gate", action="store_true", default=False)
     p.add_argument("--no-fg-gate", dest="fg_gate", action="store_false")
     p.add_argument("--stats-path", type=str, default="")
-    p.add_argument("--stats-per-class", type=int, default=8,
-                   help="Train samples/class used to estimate normal μ,σ.")
+    p.add_argument("--stats-per-class", type=int, default=20,
+                   help="Train samples/class used to estimate normal μ,σ. Use all 20 if possible.")
     p.add_argument("--view-gate", dest="view_gate", action="store_true", default=True,
                    help="Suppress maps on views that look like train-normals (the P-AP lever).")
     p.add_argument("--no-view-gate", dest="view_gate", action="store_false")
-    p.add_argument("--gate-k", type=float, default=1.25,
-                   help="View z-score threshold in units of train-normal std. Higher = more aggressive.")
+    p.add_argument("--gate-k", type=float, default=1.25)
     p.add_argument("--gate-temp", type=float, default=0.35)
-    p.add_argument("--gate-floor", type=float, default=0.0,
-                   help="Minimum keep factor. 0 = hard-ish suppress of normal views.")
+    p.add_argument("--gate-floor", type=float, default=0.0)
+    p.add_argument("--gate-hard", dest="gate_hard", action="store_true", default=True,
+                   help="Zero the whole view map if it looks like a train-normal view.")
+    p.add_argument("--gate-soft", dest="gate_hard", action="store_false")
+    p.add_argument("--gate-mode", type=str, default="max", choices=["max", "z"])
+    p.add_argument("--gate-margin", type=float, default=1.12,
+                   help="Keep view if score > margin * max(train scores of that class/view).")
     return p.parse_args()
 
 
@@ -270,14 +275,16 @@ def main():
     (out / "predicted_masks").mkdir(parents=True, exist_ok=True)
 
     local_rows = []
+    n_views_total = 0
+    n_views_zeroed = 0
     model.eval()
     with torch.no_grad():
         iterator = tqdm(loader, ncols=100, desc=f"infer r{info.rank}") if is_main(info) else loader
         for batch in iterator:
-            images = batch["images"].to(device, non_blocking=True)  # (B, 5, 3, H, W)
+            images = batch["images"].to(device, non_blocking=True)
             b, v = images.shape[:2]
-            flat = images.reshape(b * v, *images.shape[2:])
-            maps = predict_views(model, flat, args.image_size, tta_flip=args.tta_flip, use_amp=args.amp)
+            stacked = images.reshape(b * v, *images.shape[2:])
+            maps = predict_views(model, stacked, args.image_size, tta_flip=args.tta_flip, use_amp=args.amp)
             maps = maps.reshape(b, v, maps.shape[-2], maps.shape[-1])
             folders = batch["group_folder"]
             cats = batch["category"]
@@ -286,44 +293,39 @@ def main():
                 raw_s = smooth_map(maps[i], sigma=args.sigma)
                 raw_scores = []
                 for vv in range(v):
-                    flat = raw_s[vv].reshape(-1)
-                    kk = max(1, int(flat.size * args.max_ratio))
-                    raw_scores.append(float(np.partition(flat, -kk)[-kk:].mean()))
+                    pix = raw_s[vv].reshape(-1)
+                    topk = max(1, int(pix.size * args.max_ratio))
+                    raw_scores.append(float(np.partition(pix, -topk)[-topk:].mean()))
+                # CSV uses UNGATED raw scores so I-AUROC stays high.
+                img_score = squash_score(float(np.max(raw_scores)))
                 if args.refine:
                     view_maps = apply_view_refine(
-                        maps[i],
-                        images[i],
-                        cat,
-                        stats,
-                        sigma=args.sigma,
-                        gamma=args.gamma,
-                        border=args.border,
-                        use_fg=args.fg_gate,
+                        maps[i], images[i], cat, stats,
+                        sigma=args.sigma, gamma=args.gamma,
+                        border=args.border, use_fg=args.fg_gate,
                     )
                 else:
                     view_maps = raw_s
-                if args.view_gate:
-                    if stats is None:
-                        pass
-                    else:
-                        view_maps, _gates, _vs = apply_view_gate(
-                            view_maps, cat, stats,
-                            max_ratio=args.max_ratio,
-                            k=args.gate_k, temp=args.gate_temp, floor=args.gate_floor,
-                            scores=raw_scores,
-                        )
-                score = sample_score_from_views(view_maps, max_ratio=args.max_ratio, reduce=args.reduce)
-                score = squash_score(score)
-                this_scale = scale
-                masks_u8 = maps_to_uint8(view_maps, scale=this_scale)
+                if args.view_gate and stats is not None:
+                    view_maps, gates, _ = apply_view_gate(
+                        view_maps, cat, stats,
+                        max_ratio=args.max_ratio,
+                        k=args.gate_k, temp=args.gate_temp, floor=args.gate_floor,
+                        scores=raw_scores,
+                        hard=args.gate_hard, mode=args.gate_mode, margin=args.gate_margin,
+                    )
+                    n_views_total += len(gates)
+                    n_views_zeroed += sum(1 for g in gates if g <= 0.0)
+                masks_u8 = maps_to_uint8(view_maps, scale=scale)
                 gf = folders[i]
                 dest = out / "predicted_masks" / gf
                 dest.mkdir(parents=True, exist_ok=True)
-                for k in range(v):
-                    Image.fromarray(masks_u8[k], mode="L").save(dest / f"{k}_mask.png")
-                local_rows.append((gf, float(score)))
+                for vi in range(v):
+                    Image.fromarray(masks_u8[vi], mode="L").save(dest / f"{vi}_mask.png")
+                local_rows.append((gf, float(img_score)))
 
     gathered = all_gather_object(local_rows)
+    gathered_z = all_gather_object((n_views_zeroed, n_views_total))
     if is_main(info):
         rows = []
         seen = set()
@@ -344,6 +346,10 @@ def main():
                 vals.append(s)
                 writer.writerow([gf, f"{s:.8f}"])
         print(f"[csv] anomaly_score min={min(vals):.6f} max={max(vals):.6f}  (must be in [0,1])")
+        zed = sum(a for a, _ in gathered_z)
+        tot = sum(b for _, b in gathered_z)
+        if tot:
+            print(f"[gate] zeroed {zed}/{tot} views ({100.0 * zed / tot:.1f}%)")
         meta = {
             "test_root": args.test_root,
             "ckpt": args.ckpt,
