@@ -379,5 +379,4 @@ if __name__ == "__main__":
         main()
     finally:
         cleanup()
-      cleanup()
 
