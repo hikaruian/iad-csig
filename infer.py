@@ -362,7 +362,7 @@ def main():
             "gamma": args.gamma,
             "border": args.border,
             "fg_gate": args.fg_gate,
-            "view_gatee,
+            "view_gate": args.view_gate,
             "gate_k": args.gate_k,
             "n_samples": len(rows),
             "world_size": info.world_size,
