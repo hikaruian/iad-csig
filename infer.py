@@ -70,8 +70,8 @@ def parse_args():
     p.add_argument("--stats-path", type=str, default="")
     p.add_argument("--stats-per-class", type=int, default=20,
                    help="Train samples/class used to estimate normal μ,σ. Use all 20 if possible.")
-    p.add_argument("--view-gate", dest="view_gate", action="store_true", default=True,
-                   help="Suppress maps on views that look like train-normals (the P-AP lever).")
+    p.add_argument("--view-gate", dest="view_gate", action="store_true", default=False,
+                   help="OFF by default. Hard-zeroing views below a train-normal ceiling. Too aggressive → P-AUROC collapse.")
     p.add_argument("--no-view-gate", dest="view_gate", action="store_false")
     p.add_argument("--gate-k", type=float, default=1.25)
     p.add_argument("--gate-temp", type=float, default=0.35)
@@ -362,7 +362,7 @@ def main():
             "gamma": args.gamma,
             "border": args.border,
             "fg_gate": args.fg_gate,
-            "view_gate": args.view_gate,
+            "view_gatee,
             "gate_k": args.gate_k,
             "n_samples": len(rows),
             "world_size": info.world_size,
@@ -379,4 +379,5 @@ if __name__ == "__main__":
         main()
     finally:
         cleanup()
+      cleanup()
 
