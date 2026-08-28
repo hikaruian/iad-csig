@@ -281,7 +281,7 @@ def main():
                 "loss": mean_loss,
                 "best_loss": min(best_loss, mean_loss),
             }
-            torch.save(ckpt, save_dir / "last.pth")
+            #torch.save(ckpt, save_dir / "last.pth")
             if mean_loss < best_loss:
                 best_loss = mean_loss
                 torch.save(ckpt, save_dir / "best.pth")
