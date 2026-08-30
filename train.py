@@ -201,6 +201,7 @@ def main():
             optimizer.load_state_dict(ckpt["optimizer"])
         if "scheduler" in ckpt and hasattr(scheduler, "load_state_dict"):
             scheduler.load_state_dict(ckpt["scheduler"])
+            scheduler.final_value = args.min_lr
         if "scaler" in ckpt:
             try:
                 scaler.load_state_dict(ckpt["scaler"])
