@@ -56,8 +56,8 @@ def parse_args():
     p.add_argument("--grad-accum", type=int, default=2,
                    help="Micro-steps. 2 GPU × 4 × accum 2 = global 16 (paper default).")
     p.add_argument("--lr", type=float, default=1e-3)
-    p.add_argument("--min-lr", type=float, default=1e-4)
-    p.add_argument("--weight-decay", type=float, default=1e-4)
+    p.add_argument("--min-lr", type=float, default=1e-6)
+    p.add_argument("--weight-decay", type=float, default=1e-6)
     p.add_argument("--gather-weight", type=float, default=0.2)
     p.add_argument("--soft-y", type=float, default=3.0)
     p.add_argument("--num-workers", type=int, default=2,
@@ -199,6 +199,7 @@ def main():
             print(f"[resume] missing={len(missing)} unexpected={len(unexpected)}")
         if "optimizer" in ckpt:
             optimizer.load_state_dict(ckpt["optimizer"])
+            optimizer.weight_decay = args.weight_decay
         if "scheduler" in ckpt and hasattr(scheduler, "load_state_dict"):
             scheduler.load_state_dict(ckpt["scheduler"])
             scheduler.final_value = args.min_lr
