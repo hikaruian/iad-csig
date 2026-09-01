@@ -15,12 +15,25 @@ if [[ ! -d "$GROUP_DATA" ]]; then
   exit 1
 fi
 
-mapfile -t GROUPS < <(find "$GROUP_DATA" -mindepth 1 -maxdepth 1 -type d -name 'g*' -printf '%f\n' | sort)
-echo "infer ${#GROUPS[@]} groups  sigma=$SIGMA"
+#mapfile -t GROUPS < <(find "$GROUP_DATA" -mindepth 1 -maxdepth 1 -type d -name 'g*' -printf '%f\n' | sort)
+
+
+find "$GROUP_DATA" -mindepth 1 -maxdepth 1 -type d -name 'g*' -printf '%f\n' | sort > /tmp/groups1.tmp
+
+
+GROUPS1=()
+while IFS= read -r line; do
+    echo "line:$line"
+    GROUPS1+=("$line")
+done < /tmp/groups1.tmp
+rm -f /tmp/groups1.tmp
+
+
+echo "infer ${#GROUPS1[@]} groups  sigma=$SIGMA"
 
 k=0
 ok=0
-for gid in "${GROUPS[@]}"; do
+for gid in "${GROUPS1[@]}"; do
   k=$((k + 1))
   ckpt=""
   for cand in "$SAVE_ROOT/$gid/best.pth" "$SAVE_ROOT/$gid/model.pth" "$SAVE_ROOT/$gid/last.pth"; do
@@ -31,14 +44,14 @@ for gid in "${GROUPS[@]}"; do
   done
   test_root="$GROUP_DATA/$gid/Test_A"
   if [[ -z "$ckpt" ]]; then
-    echo "[$k/${#GROUPS[@]}] SKIP $gid (no ckpt)"
+    echo "[$k/${#GROUPS1[@]}] SKIP $gid (no ckpt)"
     continue
   fi
   if [[ ! -d "$test_root" ]]; then
-    echo "[$k/${#GROUPS[@]}] SKIP $gid (no Test_A)"
+    echo "[$k/${#GROUPS1[@]}] SKIP $gid (no Test_A)"
     continue
   fi
-  echo "[$k/${#GROUPS[@]}] INFER $gid  ckpt=$ckpt"
+  echo "[$k/${#GROUPS1[@]}] INFER $gid  ckpt=$ckpt"
   python infer.py \
     --test-root "$test_root" \
     --ckpt "$ckpt" \
