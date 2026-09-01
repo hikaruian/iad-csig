@@ -290,8 +290,9 @@ def main():
         barrier()
 
     if is_main(info):
-        torch.save({"model": raw.state_dict(), "args": vars(args)}, save_dir / "model.pth")
-        log(f"[done] saved {save_dir / 'model.pth'}", info, save_dir)
+        #torch.save({"model": raw.state_dict(), "args": vars(args)}, save_dir / "model.pth")
+        #log(f"[done] saved {save_dir / 'model.pth'}", info, save_dir)
+        pass
     barrier()
 
 

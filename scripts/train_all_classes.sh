@@ -43,7 +43,7 @@ for cls in "${CLASSES[@]}"; do
     torchrun --standalone --nnodes=1 --nproc_per_node="$GPUS" train.py \
       --train-root "$train_root" \
       --save-dir "$save_dir" \
-      --encoder dinov2reg_vit_large_14 \
+      --encoder dinov2reg_vit_base_14 \
       --image-size 448 \
       --inp-num 6 \
       --epochs "$EPOCHS" \
@@ -55,7 +55,7 @@ for cls in "${CLASSES[@]}"; do
     python train.py \
       --train-root "$train_root" \
       --save-dir "$save_dir" \
-      --encoder dinov2reg_vit_large_14 \
+      --encoder dinov2reg_vit_base_14 \
       --image-size 448 \
       --inp-num 6 \
       --epochs "$EPOCHS" \
