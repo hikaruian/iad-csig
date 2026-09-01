@@ -7,7 +7,7 @@ cd "$ROOT"
 
 TEST_B="${TEST_B:-$ROOT/data/Real-IAD/Test_B}"
 GROUP_DATA="${GROUP_DATA:-$ROOT/data/groups}"
-SAVE_ROOT="${SAVE_ROOT:-$ROOT/runs/groups}"
+SAVE_ROOT="${SAVE_ROOT:-/home/runs/groups}"
 UNIFIED_CKPT="${UNIFIED_CKPT:-$ROOT/runs/inpformer_b14/model.pth}"
 OUT="${OUT:-$ROOT/outputs/groups_board_b}"
 SIGMA="${SIGMA:-9.5}"
@@ -96,7 +96,7 @@ if [[ -n "$(find "$STAGE/unseen_tree" -mindepth 1 -maxdepth 1 -type l 2>/dev/nul
     --test-root "$STAGE/unseen_tree" \
     --ckpt "$UNIFIED_CKPT" \
     --out-dir "$STAGE/out_unseen" \
-    --zip "$STAGE/out_unseen.zip" \
+    --zip "$STAGE/submit_B.zip" \
     --no-refine --no-view-gate --no-fg-gate \
     --sigma "$SIGMA"
 fi

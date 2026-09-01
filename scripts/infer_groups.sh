@@ -6,7 +6,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 GROUP_DATA="${GROUP_DATA:-$ROOT/data/groups}"
-SAVE_ROOT="${SAVE_ROOT:-$ROOT/runs/groups}"
+SAVE_ROOT="${SAVE_ROOT:-/home/runs/groups}"
 OUT_ROOT="${OUT_ROOT:-$ROOT/outputs/groups}"
 SIGMA="${SIGMA:-9.5}"
 
