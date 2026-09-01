@@ -16,24 +16,42 @@ if [[ ! -d "$GROUP_DATA" ]]; then
   exit 1
 fi
 
+
 export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0,1}"
 export NCCL_P2P_DISABLE="${NCCL_P2P_DISABLE:-1}"
 export NCCL_IB_DISABLE="${NCCL_IB_DISABLE:-1}"
 
-mapfile -t GROUPS < <(find "$GROUP_DATA" -mindepth 1 -maxdepth 1 -type d -name 'g*' -printf '%f\n' | sort)
-echo "training ${#GROUPS[@]} groups  epochs=$EPOCHS  gpus=$GPUS"
+#mapfile -t GROUPS < <(find "$GROUP_DATA" -mindepth 1 -maxdepth 1 -type d -name 'g*' -printf '%f\n' | sort)
+#GROUPS=()
+#while IFS= read -r line; do
+#    GROUPS+=("$line")
+#done < <(
+
+
+find "$GROUP_DATA" -mindepth 1 -maxdepth 1 -type d -name 'g*' -printf '%f\n' | sort > /tmp/groups.tmp
+
+
+GROUPS1=()
+while IFS= read -r line; do
+    echo "line:$line"
+    GROUPS1+=("$line")
+done < /tmp/groups.tmp
+rm -f /tmp/groups.tmp
+
+echo "training ${#GROUPS1[@]} groups  epochs=$EPOCHS  gpus=$GPUS"
+
 
 k=0
-for gid in "${GROUPS[@]}"; do
+for gid in "${GROUPS1[@]}"; do
   k=$((k + 1))
   train_root="$GROUP_DATA/$gid/Train"
   save_dir="$SAVE_ROOT/$gid"
   ckpt="$save_dir/model.pth"
   if [[ "$SKIP_EXISTING" == "1" && -f "$ckpt" ]]; then
-    echo "[$k/${#GROUPS[@]}] skip $gid (found $ckpt)"
+    echo "[$k/${#GROUPS1[@]}] skip $gid (found $ckpt)"
     continue
   fi
-  echo "[$k/${#GROUPS[@]}] TRAIN $gid  classes=$(ls "$train_root" | tr '\n' ' ')"
+  echo "[$k/${#GROUPS1[@]}] TRAIN $gid  classes=$(ls "$train_root" | tr '\n' ' ')"
   mkdir -p "$save_dir"
   if [[ "$GPUS" -gt 1 ]]; then
     torchrun --standalone --nnodes=1 --nproc_per_node="$GPUS" train.py \
