@@ -6,7 +6,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT_ROOT="${OUT_ROOT:-$ROOT/outputs/per_class}"
 PACK="${PACK:-$ROOT/outputs/per_class_pack}"
-ZIP="${ZIP:-$ROOT/outputs/per_class_submit.zip}"
+ZIP="${ZIP:-$ROOT/my_submission-per_class.zip}"
 
 if [[ ! -d "$OUT_ROOT" ]]; then
   echo "no $OUT_ROOT — run infer_all_classes.sh first" >&2
