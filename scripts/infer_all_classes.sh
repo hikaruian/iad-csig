@@ -8,7 +8,7 @@ cd "$ROOT"
 PER_CLASS_DATA="${PER_CLASS_DATA:-$ROOT/data/per_class}"
 SAVE_ROOT="${SAVE_ROOT:-/home/runs/per_class}"
 OUT_ROOT="${OUT_ROOT:-$ROOT/outputs/per_class}"
-SIGMA="${SIGMA:-9.5}"
+SIGMA="${SIGMA:-6.5}"
 
 if [[ ! -d "$PER_CLASS_DATA" ]]; then
   echo "Run scripts/make_per_class_links.sh first" >&2
