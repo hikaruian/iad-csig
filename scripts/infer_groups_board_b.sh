@@ -5,9 +5,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-TEST_B="${TEST_B:-$ROOT/data/Real-IAD/Test_B}"
+#TEST_B="${TEST_B:-$ROOT/data/Real-IAD/Test_B}"
+TEST_B="${TEST_B:-/Test_B}"
 GROUP_DATA="${GROUP_DATA:-$ROOT/data/groups}"
-SAVE_ROOT="${SAVE_ROOT:-/home/runs/groups}"
+#SAVE_ROOT="${SAVE_ROOT:-/home/runs/groups}"
+SAVE_ROOT="${SAVE_ROOT:-$ROOT/runs/groups}"
 UNIFIED_CKPT="${UNIFIED_CKPT:-$ROOT/runs/inpformer_b14/model.pth}"
 OUT="${OUT:-$ROOT/outputs/groups_board_b}"
 SIGMA="${SIGMA:-9.5}"

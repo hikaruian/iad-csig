@@ -6,7 +6,8 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 GROUP_DATA="${GROUP_DATA:-$ROOT/data/groups}"
-SAVE_ROOT="${SAVE_ROOT:-/home/runs/groups}"
+#SAVE_ROOT="${SAVE_ROOT:-/home/runs/groups}"
+SAVE_ROOT="${SAVE_ROOT:-$ROOT/runs/groups}"
 OUT_ROOT="${OUT_ROOT:-$ROOT/outputs/groups}"
 SIGMA="${SIGMA:-9.5}"
 
@@ -42,7 +43,8 @@ for gid in "${GROUPS1[@]}"; do
       break
     fi
   done
-  test_root="$GROUP_DATA/$gid/Test_A"
+  #test_root="$GROUP_DATA/$gid/Test_A"
+  test_root="/Test_A"
   if [[ -z "$ckpt" ]]; then
     echo "[$k/${#GROUPS1[@]}] SKIP $gid (no ckpt)"
     continue

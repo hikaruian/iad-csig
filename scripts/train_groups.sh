@@ -6,7 +6,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 GROUP_DATA="${GROUP_DATA:-$ROOT/data/groups}"
-SAVE_ROOT="${SAVE_ROOT:-/home/runs/groups}"
+SAVE_ROOT="${SAVE_ROOT:-$ROOT/runs/groups}"
 EPOCHS="${EPOCHS:-150}"
 GPUS="${GPUS:-2}"
 SKIP_EXISTING="${SKIP_EXISTING:-1}"
@@ -44,7 +44,8 @@ echo "training ${#GROUPS1[@]} groups  epochs=$EPOCHS  gpus=$GPUS"
 k=0
 for gid in "${GROUPS1[@]}"; do
   k=$((k + 1))
-  train_root="$GROUP_DATA/$gid/Train"
+  #train_root="$GROUP_DATA/$gid/Train"
+  train_root="/Train"
   save_dir="$SAVE_ROOT/$gid"
   ckpt="$save_dir/model.pth"
   if [[ "$SKIP_EXISTING" == "1" && -f "$ckpt" ]]; then
