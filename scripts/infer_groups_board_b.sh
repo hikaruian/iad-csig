@@ -104,7 +104,6 @@ for gid in $(printf '%s\n' "${!NEED_GID[@]}" | sort); do
     --no-refine --no-view-gate --no-fg-gate \
     --sigma "$SIGMA"
 done
-fi
 
 if [[ -n "$(find "$STAGE/unseen_tree" -mindepth 1 -maxdepth 1 -type l 2>/dev/null | head -1)" ]]; then
   echo "INFER unseen/fallback with unified"
