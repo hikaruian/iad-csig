@@ -43,8 +43,7 @@ for gid in "${GROUPS1[@]}"; do
       break
     fi
   done
-  #test_root="$GROUP_DATA/$gid/Test_A"
-  test_root="/Test_A"
+  test_root="$GROUP_DATA/$gid/Test_A"
   if [[ -z "$ckpt" ]]; then
     echo "[$k/${#GROUPS1[@]}] SKIP $gid (no ckpt)"
     continue
