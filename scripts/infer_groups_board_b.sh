@@ -5,12 +5,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-#TEST_B="${TEST_B:-$ROOT/data/Real-IAD/Test_B}"
-TEST_B="${TEST_B:-/Test_B}"
+TEST_B="${TEST_B:-$ROOT/data/Real-IAD/Test_B}"
+TEST_SEEN="${TEST_SEEN:-$ROOT/data/Real-IAD/Test_A}"
 GROUP_DATA="${GROUP_DATA:-$ROOT/data/groups}"
-#SAVE_ROOT="${SAVE_ROOT:-/home/runs/groups}"
 SAVE_ROOT="${SAVE_ROOT:-$ROOT/runs/groups}"
-UNIFIED_CKPT="${UNIFIED_CKPT:-/kaggle/input/models/dickdickgo/best/pytorch/default/1/best.pth}"
+UNIFIED_CKPT="${UNIFIED_CKPT:-$ROOT/runs/inpformer_b14/model.pth}"
 OUT="${OUT:-$ROOT/outputs/groups_board_b}"
 SIGMA="${SIGMA:-9.5}"
 MANIFEST="${GROUP_DATA}/groups.tsv"
@@ -41,18 +40,30 @@ while IFS=$'\t' read -r gid members; do
   done
 done < "$MANIFEST"
 
-# which groups actually appear in Test_B (seen)
+# Union Test_A (seen) + Test_B. Official B zip often only contains unseen folders.
+declare -A CLS_SRC
+while IFS= read -r cls; do
+  [[ -n "$cls" ]] || continue
+  CLS_SRC["$cls"]="$TEST_SEEN/$cls"
+done < <(find "$TEST_SEEN" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null | sort)
+while IFS= read -r cls; do
+  [[ -n "$cls" ]] || continue
+  CLS_SRC["$cls"]="$TEST_B/$cls"
+done < <(find "$TEST_B" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort)
+
 declare -A NEED_GID
 unseen=0
-mapfile -t BCLS < <(find "$TEST_B" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort)
-for cls in "${BCLS[@]}"; do
+mapfile -t ALLCLS < <(printf '%s\n' "${!CLS_SRC[@]}" | sort)
+echo "classes to run: ${#ALLCLS[@]}  TEST_SEEN=$TEST_SEEN"
+for cls in "${ALLCLS[@]}"; do
+  src="${CLS_SRC[$cls]}"
   gid="${CLS2GID[$cls]:-}"
   if [[ -n "$gid" ]]; then
     NEED_GID["$gid"]=1
   else
     unseen=$((unseen + 1))
-    ln -sfn "$(cd "$TEST_B/$cls" && pwd)" "$STAGE/unseen_tree/$cls"
-    echo "[unseen] $cls"
+    ln -sfn "$(cd "$src" && pwd)" "$STAGE/unseen_tree/$cls"
+    echo "[unseen] $cls  src=$src"
   fi
 done
 
@@ -67,8 +78,9 @@ for gid in $(printf '%s\n' "${!NEED_GID[@]}" | sort); do
     while IFS=$'\t' read -r g members; do
       [[ "$g" == "$gid" ]] || continue
       for cls in $members; do
-        [[ -d "$TEST_B/$cls" ]] || continue
-        ln -sfn "$(cd "$TEST_B/$cls" && pwd)" "$STAGE/unseen_tree/$cls"
+        src="${CLS_SRC[$cls]:-}"
+        [[ -n "$src" && -d "$src" ]] || continue
+        ln -sfn "$(cd "$src" && pwd)" "$STAGE/unseen_tree/$cls"
       done
     done < "$MANIFEST"
     continue
@@ -78,8 +90,9 @@ for gid in $(printf '%s\n' "${!NEED_GID[@]}" | sort); do
   while IFS=$'\t' read -r g members; do
     [[ "$g" == "$gid" ]] || continue
     for cls in $members; do
-      [[ -d "$TEST_B/$cls" ]] || continue
-      ln -sfn "$(cd "$TEST_B/$cls" && pwd)" "$tree/$cls"
+      src="${CLS_SRC[$cls]:-}"
+      [[ -n "$src" && -d "$src" ]] || continue
+      ln -sfn "$(cd "$src" && pwd)" "$tree/$cls"
     done
   done < "$MANIFEST"
   echo "[seen] $gid <- $ckpt"
@@ -91,6 +104,7 @@ for gid in $(printf '%s\n' "${!NEED_GID[@]}" | sort); do
     --no-refine --no-view-gate --no-fg-gate \
     --sigma "$SIGMA"
 done
+fi
 
 if [[ -n "$(find "$STAGE/unseen_tree" -mindepth 1 -maxdepth 1 -type l 2>/dev/null | head -1)" ]]; then
   echo "INFER unseen/fallback with unified"
@@ -98,7 +112,7 @@ if [[ -n "$(find "$STAGE/unseen_tree" -mindepth 1 -maxdepth 1 -type l 2>/dev/nul
     --test-root "$STAGE/unseen_tree" \
     --ckpt "$UNIFIED_CKPT" \
     --out-dir "$STAGE/out_unseen" \
-    --zip "$STAGE/submit_B.zip" \
+    --zip "$STAGE/out_unseen.zip" \
     --no-refine --no-view-gate --no-fg-gate \
     --sigma "$SIGMA"
 fi
