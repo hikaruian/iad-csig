@@ -44,8 +44,7 @@ echo "training ${#GROUPS1[@]} groups  epochs=$EPOCHS  gpus=$GPUS"
 k=0
 for gid in "${GROUPS1[@]}"; do
   k=$((k + 1))
-  #train_root="$GROUP_DATA/$gid/Train"
-  train_root="/Train"
+  train_root="$GROUP_DATA/$gid/Train"
   save_dir="$SAVE_ROOT/$gid"
   ckpt="$save_dir/model.pth"
   if [[ "$SKIP_EXISTING" == "1" && -f "$ckpt" ]]; then
