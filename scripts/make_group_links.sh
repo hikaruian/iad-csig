@@ -4,9 +4,9 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 #TRAIN_SRC="${TRAIN_SRC:-$ROOT/data/Real-IAD/Train}"
-TRAIN_SRC="${TRAIN_SRC:-/Train}"
+TRAIN_SRC="${TRAIN_SRC:-/kaggle/input/datasets/dickdickgo/real-iad/Train}"
 #TEST_SRC="${TEST_SRC:-$ROOT/data/Real-IAD/Test_A}"
-TEST_SRC="${TEST_SRC:-/Test_A}"
+TEST_SRC="${TEST_SRC:-/kaggle/input/datasets/dickdickgo/real-iad/Test_A}"
 OUT="${GROUP_DATA:-$ROOT/data/groups}"
 GROUP_SIZE="${GROUP_SIZE:-5}"
 

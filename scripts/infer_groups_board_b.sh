@@ -5,11 +5,13 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-TEST_B="${TEST_B:-$ROOT/data/Real-IAD/Test_B}"
-TEST_SEEN="${TEST_SEEN:-$ROOT/data/Real-IAD/Test_A}"
+#TEST_B="${TEST_B:-$ROOT/data/Real-IAD/Test_B}"
+TEST_B="${TEST_B:-/kaggle/input/datasets/dickdickgo/real-iad/Test_B}"
+#TEST_SEEN="${TEST_SEEN:-$ROOT/data/Real-IAD/Test_A}"
+TEST_SEEN="${TEST_SEEN:-/kaggle/input/datasets/dickdickgo/real-iad/Test_B}"
 GROUP_DATA="${GROUP_DATA:-$ROOT/data/groups}"
 SAVE_ROOT="${SAVE_ROOT:-$ROOT/runs/groups}"
-UNIFIED_CKPT="${UNIFIED_CKPT:-$ROOT/runs/inpformer_b14/model.pth}"
+UNIFIED_CKPT="${UNIFIED_CKPT:-/kaggle/input/models/dickdickgo/best/pytorch/default/1/best.pth}"
 OUT="${OUT:-$ROOT/outputs/groups_board_b}"
 SIGMA="${SIGMA:-9.5}"
 MANIFEST="${GROUP_DATA}/groups.tsv"
@@ -126,7 +128,7 @@ for d in "$STAGE"/out_*; do
 done
 sed -i 's/\r$//' "$PACK/submission.csv"
 
-ZIP="$OUT/submission_B.zip"
+ZIP="$OUT/submission_B_$SIGMA.zip"
 rm -f "$ZIP"
 ( cd "$PACK" && zip -rq "$ZIP" submission.csv predicted_masks )
 echo "zip $ZIP  rows=$(tail -n +2 "$PACK/submission.csv" | wc -l)"
