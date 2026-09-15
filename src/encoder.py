@@ -129,6 +129,7 @@ class DinoV2Encoder(nn.Module):
     def _load(self, source: str):
         errors = []
         order = ["hub", "timm"] if source == "auto" else [source]
+        """
         for kind in order:
             try:
                 if kind == "hub":
@@ -153,6 +154,17 @@ class DinoV2Encoder(nn.Module):
                     return model
             except Exception as exc:  # noqa: BLE001
                 errors.append(f"{kind}: {exc}")
+        """
+        try:
+            model = torch.hub.load("/kaggle/working/dinov3",
+                                   "dinov3_vitl16",
+                                   source="local",
+                                   pretrained=False,
+                                   weights="/kaggle/working/dinov3/checkpoints/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth")
+            self.backend = "hub"
+            return model
+        except Exception as exc:
+            errors.append(f"{kind}: {exc}")
         raise RuntimeError(
             "Failed to load DINOv2 weights. Install torch + internet, or timm.\n"
             + "\n".join(errors)
